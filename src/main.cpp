@@ -273,7 +273,7 @@ void process() {
       motor->stop();
       isMoving = false;
       Serial.printf("Warning: Moving (curTime=%lu;estimatedEndTime=%lu) more than calculated (%lu)! Force stop...\n", currentTime, estimatedEndTime, (cover->isTargetToOpen() ? timeToOpen : timeToClose));
-      cover->setCurrentPosition(cover->isTargetToOpen() ? cover->getOpenedPosition() : cover->getClosedPosition());
+      cover->setCurrentPosition(cover->getTargetPosition());
       Serial.printf("pos: %i -> %i\n", cover->getCurrentPosition(), cover->getTargetPosition());
     }
   }
