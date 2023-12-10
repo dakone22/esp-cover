@@ -48,6 +48,7 @@ public:
         pinMode(_in_1_pin, OUTPUT);
         pinMode(_in_2_pin, OUTPUT);
         pinMode(_pwm_speed_pin, OUTPUT);
+        setSpeed(_max_speed);
     }
 
     void rotateOpening() override { write_in_pins(LOW, HIGH); };
@@ -91,8 +92,8 @@ class TimeToMoveRecorder {
 private:
     static const long MS_TO_WAIT_INERTIA = 1000;
 
-    long msToOpen = -1;
-    long msToClose = -1;
+    unsigned long msToOpen = -1;
+    unsigned long msToClose = -1;
 
     CoverState lastCoverState = CoverState::Unknown;
 
@@ -106,12 +107,15 @@ private:
     bool isWaiting = false;
     unsigned long msWaitedTime;
     
-    void wait(long ms) {
+    void setMsToWait(long ms) {
         msWaitedTime = millis() + ms;
         isWaiting = true;
     }
 
 public:
+    TimeToMoveRecorder(unsigned long timeToOpen = -1, unsigned long timeToClose = -1)
+        : msToOpen(timeToOpen), msToClose(timeToClose) { }
+
     long getMsToOpen() { return msToOpen; }
     long getMsToClose() { return msToClose; }
     CoverState getLastCoverState() { return lastCoverState; }
@@ -129,7 +133,8 @@ public:
             {
             case Unknown:
                 if (coverSensors->isOpened()) {
-                    state = StartRecordingMsToClose;
+                    lastCoverState = CoverState::Opened;
+                    state = msToClose != -1UL and msToOpen != -1UL ? Ready : StartRecordingMsToClose;
                     break;
                 }
 
@@ -141,9 +146,11 @@ public:
                 if (not coverSensors->isClosed()) return false;
                 
                 motorController->stop();
-                state = StartRecordingMsToOpen;
+
+                lastCoverState = CoverState::Closed;
+                state = msToClose != -1UL and msToOpen != -1UL ? Ready : StartRecordingMsToOpen;
                 
-                wait(MS_TO_WAIT_INERTIA);
+                setMsToWait(MS_TO_WAIT_INERTIA);
 
                 break;
 
@@ -158,10 +165,12 @@ public:
                 motorController->stop();
                 msToOpen = millis() - msToOpen;
 
-                state = msToClose == -1 ? StartRecordingMsToClose : Ready;
+                Serial.printf("Recorded ms to open: %lu\n", msToOpen);
+
+                state = msToClose == -1UL ? StartRecordingMsToClose : Ready;
                 lastCoverState = CoverState::Opened;
                 
-                wait(MS_TO_WAIT_INERTIA);
+                setMsToWait(MS_TO_WAIT_INERTIA);
                 
                 break;
 
@@ -175,11 +184,12 @@ public:
 
                 motorController->stop();
                 msToClose = millis() - msToClose;
+                Serial.printf("Recorded ms to close: %lu\n", msToClose);
 
-                state = msToOpen == -1 ? StartRecordingMsToOpen : Ready;
+                state = msToOpen == -1UL ? StartRecordingMsToOpen : Ready;
                 lastCoverState = CoverState::Closed;
 
-                wait(MS_TO_WAIT_INERTIA);
+                setMsToWait(MS_TO_WAIT_INERTIA);
                 
                 break;
             

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
@@ -11,6 +12,8 @@
 #include "config.h"
 const char * client_id = ("esp8266_" + String(ESP.getChipId())).c_str();
 
+const unsigned long BAUDRATE = 921600;
+
 /**************************************************************************
  * Глобальные переменные
  *************************************************************************/
@@ -19,16 +22,9 @@ PubSubClient mqttClient(wifiClient);
 
 std::shared_ptr<ICoverSensors>             sensors;
 std::shared_ptr<ISpeedableMotorController> motor;
-std::shared_ptr<IPositionCover>            cover;
+std::shared_ptr<IPositionCover>            cover = nullptr;
 
 bool isCoverReady = false;
-
-// Текущее состояние цифровых входов
-// Последнее опубликованное состояние реле
-// Здесь маленькая хитрость: публикация в топик происходит только при наличии изменений
-// (то есть когда inputStatus1 != digitalRead()), то при первом подключении ничего не будет опубликовано
-// Дабы форсировать события, проинициализируем переменные заведомо ложными данными, которых не будет при любом состоянии входов
-char inputStatus1 = 2;
 
 /**************************************************************************
  * Сервисные функции
@@ -120,8 +116,6 @@ void mqttOnIncomingMsg(char* topic, byte* payload, unsigned int length)
   Serial.print("]: ");
   Serial.print(_payload.c_str());
   Serial.println();
-
-  if (cover == nullptr) return;
 
   // Сравниваем с топиками
   String _topic(topic);
@@ -218,25 +212,32 @@ public:
   };
 };
 
-static unsigned long timeToOpen, timeToClose;
+//Recorded ms to open: 3169
+//Recorded ms to close: 2348
+static unsigned long timeToOpen = 3169, timeToClose = 2348;
 
 void process() {
   static bool isMoving = false;
 
   if (sensors->isClosed() and not cover->isTargetToOpen()) {
-      motor->stop();
-      isMoving = false;
-      cover->setCurrentPosition(cover->getClosedPosition());
+    motor->stop();
+    isMoving = false;
+    cover->setCurrentPosition(cover->getClosedPosition());
+    Serial.println("sensors->isClosed() and not cover->isTargetToOpen()");
   } else if (sensors->isOpened() and not cover->isTargetToClose()) {
-      motor->stop();
-      isMoving = false;
-      cover->setCurrentPosition(cover->getOpenedPosition());
+    motor->stop();
+    isMoving = false;
+    cover->setCurrentPosition(cover->getOpenedPosition());
+    Serial.println("sensors->isClosed() and not cover->isTargetToOpen()");
   }
 
   if (cover->getCurrentPosition() == IPositionCover::UnknownPosition)
     Serial.println("Warning: Still unknown position, when shouldn't it!");
 
   static unsigned long startTime, estimatedEndTime;
+  static int startPosition;
+
+  if (cover->getTargetPosition() == -1) return;
 
   if (cover->getTargetPosition() == cover->getCurrentPosition()) {
     isMoving = false;
@@ -246,13 +247,17 @@ void process() {
   
   if (not isMoving) {
     isMoving = true;
+    auto target_current_position_relative = abs(cover->getTargetPosition() - cover->getCurrentPosition());
+    static const auto max_min_position_relative = abs(position_open - position_closed);
+    double x = (double)target_current_position_relative / max_min_position_relative;
+    startPosition = cover->getCurrentPosition();
     if (cover->isTargetToOpen()) {
       startTime = millis();
-      estimatedEndTime = startTime + timeToOpen;
+      estimatedEndTime = startTime + timeToOpen * x;
       motor->rotateOpening();
     } else if (cover->isTargetToClose()) {
       startTime = millis();
-      estimatedEndTime = startTime + timeToClose;
+      estimatedEndTime = startTime + timeToClose * x;
       motor->rotateClosing();
     } else {
       Serial.print("WRONG STATE: ");
@@ -260,15 +265,16 @@ void process() {
       isMoving = false;  // cancel
     }
   } else {
-    static long openedPosition = cover->getOpenedPosition();
-    static long closedPosition = cover->getClosedPosition();
     unsigned long currentTime = millis();
-    cover->setCurrentPosition(map(currentTime, startTime, estimatedEndTime, openedPosition, closedPosition));
-    if (currentTime > estimatedEndTime) {
+    auto pos = map(currentTime, startTime, estimatedEndTime, startPosition, cover->getTargetPosition());
+    cover->setCurrentPosition(pos);
+    Serial.println(pos);
+    if (currentTime > estimatedEndTime and currentTime - estimatedEndTime > (cover->isTargetToOpen() ? timeToOpen : timeToClose)) {
       motor->stop();
       isMoving = false;
-      Serial.println("Warning: Moving more than calculated! Force stop...");
+      Serial.printf("Warning: Moving (curTime=%lu;estimatedEndTime=%lu) more than calculated (%lu)! Force stop...\n", currentTime, estimatedEndTime, (cover->isTargetToOpen() ? timeToOpen : timeToClose));
       cover->setCurrentPosition(cover->isTargetToOpen() ? cover->getOpenedPosition() : cover->getClosedPosition());
+      Serial.printf("pos: %i -> %i\n", cover->getCurrentPosition(), cover->getTargetPosition());
     }
   }
 }
@@ -278,55 +284,110 @@ void process() {
  * Основные функции
  *************************************************************************/
 
+#define SPEED 255
+
+struct StoreEntry {
+  unsigned char speed;
+  unsigned long timeToMove;
+};
+
 void setup() {
+  EEPROM.begin(sizeof(StoreEntry) * 2);
+
   // Настройка COM-порта
-  Serial.begin(921600);
+  Serial.begin(BAUDRATE);
   Serial.println();
   Serial.println("MQTT COVER FOR ESP8266");
+
+  mqttClient.setKeepAlive(5);
 
   sensors = std::make_shared<CoverSensors>(sensor_closed_pin, 
                                            sensor_opened_pin, 
                                            LOW);
-  Serial.printf("CLOSED: %d; OPENED: %d", sensors->isClosed(), sensors->isOpened());
+  Serial.printf("CLOSED: %d; OPENED: %d\n", sensors->isClosed(), sensors->isOpened());
 
   motor = std::make_shared<MotorDriverController>(motor_controller_in_1_pin, 
                                                   motor_controller_in_2_pin,
                                                   motor_controller_pwm_speed_pin, 0, 255);
-  motor->setSpeed(180);
+  motor->setSpeed(SPEED);
 
   cover = std::make_shared<MqttCover>(position_closed, position_open);
   // cover->setCurrentPosition(position_open);
 
+
+  StoreEntry entry;
+
+  EEPROM.get(sizeof(StoreEntry) * 0, entry);
+  if (entry.speed == SPEED) {
+    Serial.printf("read from memory time to open: speed=%i; time=%lu\n", entry.speed, entry.timeToMove);
+    timeToOpen = entry.timeToMove;
+  }
+
+  EEPROM.get(sizeof(StoreEntry) * 1, entry);
+  if (entry.speed == SPEED) {
+    Serial.printf("read from memory time to close: speed=%i; time=%lu\n", entry.speed, entry.timeToMove);
+    timeToClose = entry.timeToMove;
+  }
+
   delay(5000);
+
 }
 
-static TimeToMoveRecorder r;
-
 void loop() {
+  static bool mqtt_announced = false, mqtt_connected = false;
+
   // Проверяем подключение к WiFi
   if (wifiConnectionProcess()) {
     // Подключение к WiFi установлено 
     if (mqttConnected()) {
+      mqtt_connected = true;
       // Подключение к MQTT установлено 
       mqttClient.loop();
+    } else {
+      mqtt_announced = false;
+      mqtt_connected = false;
     };
   };
+
+  static TimeToMoveRecorder r(timeToOpen, timeToClose);
 
   if (not isCoverReady) {
     if (r.isReady(sensors, motor)) {
       Serial.println("Cover is ready!");
       isCoverReady = true;
-      timeToOpen = r.getMsToOpen();
-      timeToClose = r.getMsToClose();
+
+      if (timeToOpen == -1ul) {
+        timeToOpen = r.getMsToOpen();
+
+        StoreEntry entry = {SPEED, timeToOpen};
+        EEPROM.put(sizeof(entry) * 0, entry);
+      }
+
+      if (timeToClose == -1ul) {
+        timeToClose = r.getMsToClose();
+
+        StoreEntry entry = {SPEED, timeToClose};
+        EEPROM.put(sizeof(entry) * 1, entry);
+      }
+
+      EEPROM.end();
+      
       if (r.getLastCoverState() == CoverState::Closed)
         cover->setCurrentPosition(cover->getClosedPosition());
       else if (r.getLastCoverState() == CoverState::Opened)
         cover->setCurrentPosition(cover->getOpenedPosition());
-      
-      mqttClient.publish(mqtt_topic_availability, mqtt_topic_availability_payload_available);
     }
   } else {
     process();
+
+    if (mqtt_connected and not mqtt_announced) {
+      Serial.printf("Sending [%s]: \"%s\"\n", mqtt_topic_availability, mqtt_topic_availability_payload_available);
+      mqttClient.publish(mqtt_topic_availability, mqtt_topic_availability_payload_available);
+      
+      cover->setCurrentPosition(cover->getCurrentPosition());
+      
+      mqtt_announced = true;
+    }
   }
 }
 
