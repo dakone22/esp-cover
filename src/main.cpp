@@ -219,16 +219,23 @@ static unsigned long timeToOpen = 3169, timeToClose = 2348;
 void process() {
   static bool isMoving = false;
 
-  if (sensors->isClosed() and not cover->isTargetToOpen()) {
+  if (sensors->isClosed() && !cover->isTargetToOpen()) {
     motor->stop();
     isMoving = false;
+    Serial.printf("sensors->isClosed()%i and not cover->isTargetToOpen()%i; %i->%i\n", 
+      sensors->isClosed(), 
+      cover->isTargetToOpen(),
+      cover->getCurrentPosition(),
+      cover->getTargetPosition()
+      );
+    
     cover->setCurrentPosition(cover->getClosedPosition());
-    Serial.println("sensors->isClosed() and not cover->isTargetToOpen()");
+
   } else if (sensors->isOpened() and not cover->isTargetToClose()) {
     motor->stop();
     isMoving = false;
     cover->setCurrentPosition(cover->getOpenedPosition());
-    Serial.println("sensors->isClosed() and not cover->isTargetToOpen()");
+    Serial.println("sensors->isOpened() and not cover->isTargetToClose()");
   }
 
   if (cover->getCurrentPosition() == IPositionCover::UnknownPosition)
@@ -250,6 +257,13 @@ void process() {
     auto target_current_position_relative = abs(cover->getTargetPosition() - cover->getCurrentPosition());
     static const auto max_min_position_relative = abs(position_open - position_closed);
     double x = (double)target_current_position_relative / max_min_position_relative;
+
+    Serial.printf("x = |%i - %i|/|%i - %i| = %i/%i = %lf", cover->getTargetPosition(), cover->getCurrentPosition(), position_open, position_closed, target_current_position_relative, max_min_position_relative, x);
+
+    if (cover->getTargetPosition() == cover->getOpenedPosition() or cover->getTargetPosition() == cover->getClosedPosition()) x = 1;
+    
+    Serial.printf("=> x=%lf\n", x);
+
     startPosition = cover->getCurrentPosition();
     if (cover->isTargetToOpen()) {
       startTime = millis();
@@ -268,7 +282,7 @@ void process() {
     unsigned long currentTime = millis();
     auto pos = map(currentTime, startTime, estimatedEndTime, startPosition, cover->getTargetPosition());
     cover->setCurrentPosition(pos);
-    Serial.println(pos);
+    //Serial.println(pos);
     if (currentTime > estimatedEndTime and currentTime - estimatedEndTime > (cover->isTargetToOpen() ? timeToOpen : timeToClose)) {
       motor->stop();
       isMoving = false;
@@ -312,8 +326,6 @@ void setup() {
   motor->setSpeed(SPEED);
 
   cover = std::make_shared<MqttCover>(position_closed, position_open);
-  // cover->setCurrentPosition(position_open);
-
 
   StoreEntry entry;
 
