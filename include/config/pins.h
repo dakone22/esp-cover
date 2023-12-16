@@ -1,5 +1,5 @@
-#ifndef CONFIG_PIN_H
-#define CONFIG_PIN_H
+#ifndef CONFIG_PINS_H
+#define CONFIG_PINS_H
 
 #include <Arduino.h>
 
