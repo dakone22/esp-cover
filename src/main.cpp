@@ -220,7 +220,6 @@ void setup_mqtt() {
     mqttConnectionWrapper = std::make_shared<MqttConnectionWrapper>(mqttClient);
     mqttConnectionWrapper->setServer({ settings.mqtt.host, settings.mqtt.port });
     mqttConnectionWrapper->setAuth({ client_id.c_str(), settings.mqtt.login, settings.mqtt.pass });
-    auto _mqtt_topic_availability = String(settings.mqtt.topic_prefix) + String(1) + "/" + (mqtt_topic_availability);
     mqttConnectionWrapper->setLastWill({_topics->getTopicAvailability(1), MQTT::QoS::AtLeastOnce,
                                         MQTT::RetainMessage::Yes, mqtt_topic_availability_payload_not_available });
     mqttConnectionWrapper->setTopics({
