@@ -4,6 +4,8 @@
 #include "CoverTimingsManager.h"
 #include "config/memory.h"
 
+unsigned int CoverTimingsManager::GLOBAL_INDEX = 0;
+
 bool isValid(CoverTimingsEntry entry) {
     return entry.speed > 0 and
             (0 < entry.timeToMove and entry.timeToMove < 10000);

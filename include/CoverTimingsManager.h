@@ -56,7 +56,8 @@ private:
     int getOpenEntryAddress() const;
     int getCloseEntryAddress() const;
 
-    int index;
+    static unsigned int GLOBAL_INDEX;
+    const int index;
 
 public:
     CoverTimingsManager();
@@ -66,10 +67,6 @@ public:
 
     std::optional<unsigned long> loadTimeToOpen() override;
     std::optional<unsigned long> loadTimeToClose() override;
-
-    static unsigned int GLOBAL_INDEX;
 };
-
-unsigned int CoverTimingsManager::GLOBAL_INDEX = 0;
 
 #endif //COVERTIMINGSMANAGER_H
