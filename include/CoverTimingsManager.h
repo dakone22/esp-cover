@@ -56,6 +56,8 @@ private:
     int getOpenEntryAddress() const;
     int getCloseEntryAddress() const;
 
+    int index;
+
 public:
     CoverTimingsManager();
 
