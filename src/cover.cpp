@@ -15,3 +15,6 @@ CoverState IPositionCover::getState() {
 
     return CoverState::Unknown;
 }
+
+Cover::Cover(int closedPosition_, int openedPosition_)
+        : closedPosition(closedPosition_), openedPosition(openedPosition_) { }

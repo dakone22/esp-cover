@@ -1,5 +1,5 @@
+#include <Arduino.h>
 #include <EEPROM.h>
-#include <HardwareSerial.h>
 
 #include "CoverTimingsManager.h"
 #include "config/memory.h"
@@ -18,7 +18,9 @@ CoverTimingsManager::CoverTimingsManager() {
     EEPROM.end();
 
     valid = isValid(toOpen) and isValid(toClose);
+#ifdef DEBUG_SERIAL_OUT
     Serial.printf("Read from memory: open=%lu (%i), close=%lu (%i)\n", toOpen.timeToMove, toOpen.speed, toClose.timeToMove, toClose.speed);
+#endif
 }
 
 inline bool isEqual(CoverTimingsEntry e1, CoverTimingsEntry e2) {

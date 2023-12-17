@@ -20,13 +20,17 @@ bool wifiConnectionProcess(const Settings::WiFi & wifi) {
         switch (state) {
 
             case LostConnection:
+#ifdef DEBUG_SERIAL_OUT
                 Serial.println("Lost connection, attempting again...");
+#endif
                 state = Start;
 
             case Start:
                 // ... иначе пробуем подключиться к сети
+#ifdef DEBUG_SERIAL_OUT
                 Serial.print("Connecting to WiFi AP ");
                 Serial.println(wifi.ssid);
+#endif
 
                 // Настраиваем WiFi
                 WiFi.mode(WIFI_STA);
@@ -36,8 +40,9 @@ bool wifiConnectionProcess(const Settings::WiFi & wifi) {
 
             case Connecting:
                 if (WiFi.status() != WL_CONNECTED) {
+#ifdef DEBUG_SERIAL_OUT
                     Serial.println("Connecting...");
-
+#endif
                     isWaiting = true;
                     nextTime = millis() + 500;
 
@@ -45,10 +50,11 @@ bool wifiConnectionProcess(const Settings::WiFi & wifi) {
                 }
 
                 // Подключение успешно установлено
+#ifdef DEBUG_SERIAL_OUT
                 Serial.println(" ok");
                 Serial.print("WiFi connected, obtained IP address: ");
                 Serial.println(WiFi.localIP());
-
+#endif
                 state = Connected;
 
             case Connected:

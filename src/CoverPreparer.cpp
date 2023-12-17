@@ -50,9 +50,9 @@ void CoverPreparer::prepare() {
 
                 _motorController->stop();
                 msToOpen = millis() - msToOpen;
-
+#ifdef DEBUG_SERIAL_OUT
                 Serial.printf("Recorded ms to open: %lu\n", msToOpen);
-
+#endif
                 state = msToClose == -1UL ? StartRecordingMsToClose : Ready;
                 lastCoverState = CoverState::Opened;
 
@@ -70,8 +70,9 @@ void CoverPreparer::prepare() {
 
                 _motorController->stop();
                 msToClose = millis() - msToClose;
+#ifdef DEBUG_SERIAL_OUT
                 Serial.printf("Recorded ms to close: %lu\n", msToClose);
-
+#endif
                 state = msToOpen == -1UL ? StartRecordingMsToOpen : Ready;
                 lastCoverState = CoverState::Closed;
 

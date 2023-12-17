@@ -1,25 +1,44 @@
 #ifndef MQTT_H
 #define MQTT_H
 
+/**
+ * @brief Пространство имен для перечислений, связанных с MQTT.
+ */
 namespace MQTT {
+    /**
+     * @brief Enum, представляющий уровни качества обслуживания (QoS) в MQTT.
+     */
     enum QoS {
-        // At the lowest level, QoS 0 in MQTT offers a best-effort delivery mechanism where the sender does not expect an acknowledgment or guarantee of message delivery. This means that the recipient does not acknowledge receiving the message, and the sender does not store or re-transmit it. QoS 0, commonly called “fire and forget,” functions akin to the underlying TCP protocol, where the message is sent without further follow-up or confirmation.
-        AtMostOnce  = 0,
+        /**
+         * @brief QoS 0: Доставка с минимальными затратами, без подтверждения или гарантии доставки сообщения.
+         */
+        AtMostOnce = 0,
 
-        // In QoS 1 of MQTT, the focus is on ensuring message delivery at least once to the receiver. When a message is published with QoS 1, the sender keeps a copy of the message until it receives a PUBACK packet from the receiver, confirming the successful receipt. If the sender doesn’t receive the PUBACK packet within a reasonable time frame, it re-transmits the message to ensure its delivery. 
+        /**
+         * @brief QoS 1: Обеспечивает доставку хотя бы одного сообщения получателю, с подтверждением сообщения.
+         */
         AtLeastOnce = 1,
-        
-        // QoS 2 offers the highest level of service in MQTT, ensuring that each message is delivered exactly once to the intended recipients. To achieve this, QoS 2 involves a four-part handshake between the sender and receiver.
+
+        /**
+         * @brief QoS 2: Обеспечивает однократную доставку каждого сообщения адресатам.
+         */
         ExactlyOnce = 2,
     };
 
+    /**
+     * @brief Перечисление, представляющее статус сохранения сообщений MQTT.
+     */
     enum RetainMessage : bool {
-        // Will not save last message for all new subscribers
-        No = false, 
+        /**
+         * @brief Не удерживать: Последнее сообщение не будет сохраняться для всех новых подписчиков.
+         */
+        No = false,
 
-        // Will save last message for all new subscribers
+        /**
+         * @brief Удержание включено: Последнее сообщение будет сохранено для всех новых подписчиков.
+         */
         Yes = true,
     };
 }
 
-#endif
+#endif // MQTT_H
