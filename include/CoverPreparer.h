@@ -8,21 +8,43 @@
 #include "sensors.h"
 #include "motor.h"
 
+/**
+ * @brief Структура, представляющая результат подготовки шторы.
+ */
 struct CoverPrepareResult {
-    unsigned long timeToOpen, timeToClose;
-    CoverState lastState;
+    unsigned long timeToOpen; /**< Время, необходимое для полного открытия шторы. */
+    unsigned long timeToClose; /**< Время, необходимое для полного закрытия шторы. */
+    CoverState lastState; /**< Последнее зарегистрированное состояние шторы. */
 };
 
-/// "Готовит" шторы: рассчитывает время открытия и закрытия, и устанавливает в определённое положение.
+/**
+ * @brief Интерфейс для подготовки штор: расчет времени открытия/закрытия и установка определенной позиции.
+ */
 class ICoverPreparer {
 public:
+    /**
+     * @brief Подготовка обложки.
+     */
     virtual void prepare() = 0;
+
+    /**
+     * @brief Проверка, подготовлена ли обложка.
+     * @return True, если обложка подготовлена, false - в противном случае.
+     */
     virtual bool isPrepared() = 0;
+
+    /**
+     * @brief Получает результат подготовки обложки.
+     * @return CoverPrepareResult, содержащий результаты подготовки.
+     */
     virtual CoverPrepareResult getResult() const = 0;
 
     virtual ~ICoverPreparer() = default;
 };
 
+/**
+ * @brief Конкретная реализация интерфейса ICoverPreparer.
+ */
 class CoverPreparer : public ICoverPreparer {
     static const long MS_TO_WAIT_INERTIA = 1000;
 
@@ -44,12 +66,23 @@ class CoverPreparer : public ICoverPreparer {
     bool isWaiting = false;
     unsigned long msWaitedTime;
 
+    /**
+     * @brief Устанавливает время ожидания указанной продолжительности.
+     * @param ms Продолжительность ожидания в миллисекундах.
+     */
     void setMsToWait(long ms) {
         msWaitedTime = millis() + ms;
         isWaiting = true;
     }
 
 public:
+    /**
+     * @brief Конструктор для класса CoverPreparer.
+     * @param coverSensors Указатель на экземпляр датчиков шторы.
+     * @param motorController Указатель на экземпляр контроллера моторов.
+     * @param timeToOpen Загруженное время, необходимое для полного открытия крышки.
+     * @param timeToClose Загруженное время, необходимое для полного закрытия крышки.
+     */
     CoverPreparer(const std::shared_ptr<ICoverSensors> & coverSensors,
                   const std::shared_ptr<IMotorController> & motorController,
                   unsigned long timeToOpen = -1, unsigned long timeToClose = -1);

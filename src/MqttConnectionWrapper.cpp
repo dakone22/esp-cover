@@ -3,17 +3,17 @@
 MqttConnectionWrapper::MqttConnectionWrapper(PubSubClient & mqtt_client) : _mqtt_client(mqtt_client) { }
 
 bool MqttConnectionWrapper::tryConnect() {
-    _mqtt_client.connect(
+    return _mqtt_client.connect(
             _mqtt_server_auth.client_id,
             _mqtt_server_auth.login,
             _mqtt_server_auth.password);
-    return _mqtt_client.connected();
 }
 
 bool MqttConnectionWrapper::tryConnect(LastWill lastWill) {
+#ifdef DEBUG_SERIAL_OUT
     Serial.printf("willtopic: \"%s\"\n", lastWill.topic);
-
-    _mqtt_client.connect(
+#endif
+    return _mqtt_client.connect(
             _mqtt_server_auth.client_id,
             _mqtt_server_auth.login,
             _mqtt_server_auth.password,
@@ -22,7 +22,6 @@ bool MqttConnectionWrapper::tryConnect(LastWill lastWill) {
             lastWill.qos,
             lastWill.retainMessage,
             lastWill.payload);
-    return _mqtt_client.connected();
 }
 
 bool MqttConnectionWrapper::isConnected() {
@@ -41,7 +40,9 @@ void MqttConnectionWrapper::onConnectionSuccess() {
         _mqtt_client.subscribe(topic, qos);
 
     _was_connected = true;
+#ifdef DEBUG_SERIAL_OUT
     Serial.printf("calling _onConnectionFunc(true); %i\n", _mqtt_client.connected());
+#endif
     _onConnectionFunc(true);
 }
 

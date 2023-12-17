@@ -3,16 +3,17 @@
 
 #include <memory>
 
+/**
+ * @brief Enum, представляющий состояния шторы.
+ */
 enum class CoverState {
-    Opened,
-    Closed,
-    Opening,
-    Closing,
-    Unknown,
+    Opened, Closed, Opening, Closing, Unknown,
 };
 
-
-class IStateCover {
+/**
+ * @brief Интерфейс для операций, связанных с состоянием шторы.
+ */
+class IStateCover{
 public:
     virtual void open() = 0;
     virtual void close() = 0;
@@ -23,25 +24,80 @@ public:
     virtual ~IStateCover() = default;
 };
 
-class IPositionCover : public IStateCover {
+/**
+ * @brief Интерфейс для позиционных операций шторы.
+ */
+class IPositionCover : public IStateCover{
 public:
+    /**
+     * @brief Константа, представляющая неизвестную позицию.
+     */
     static const int UnknownPosition = -1;
 
+    /**
+     * @brief Установить целевое положение шторы.
+     * @param value Целевое положение для установки.
+     */
     virtual void setTargetPosition(int value) = 0;
+
+    /**
+     * @brief Целевая позиция шторы.
+     * @return Целевая позиция.
+     */
     virtual int getTargetPosition() = 0;
 
+    /**
+     * @brief Установить текущее положение шторы.
+     * @param value Текущая позиция для установки.
+     */
     virtual void setCurrentPosition(int value) = 0;
+
+    /**
+     * @brief Текущая позиция шторы.
+     * @return Текущая позиция.
+     */
     virtual int getCurrentPosition() = 0;
 
+    /**
+     * @brief Получает положение, в котором крышка полностью открыта.
+     * @return Открытая позиция.
+     */
     virtual int getOpenedPosition() = 0;
+
+    /**
+     * @brief Получает положение, в котором крышка полностью закрыта.
+     * @return Закрытая позиция.
+     */
     virtual int getClosedPosition() = 0;
 
+    /**
+     * @brief Открывает штору, устанавливая положение цели в положение открытия.
+     */
     inline void open() override { setTargetPosition(getOpenedPosition()); };
-    inline void close() override { setTargetPosition(getClosedPosition()); };
-    inline void stop() override { setTargetPosition(getCurrentPosition()); setCurrentPosition(getCurrentPosition()); };
 
+    /**
+     * @brief Закрывает штору, устанавливая целевое положение в закрытое положение.
+     */
+    inline void close() override { setTargetPosition(getClosedPosition()); };
+
+    /**
+     * @brief Остановка шторы путём установки целевой позиции на текущую позицию.
+     */
+    inline void stop() override {
+        setTargetPosition(getCurrentPosition());
+        setCurrentPosition(getCurrentPosition());
+    };
+
+    /**
+     * @brief Получить состояние шторы.
+     * @return CoverState, представляющий текущее состояние.
+     */
     CoverState getState() override;
 
+    /**
+     * @brief Проверяет, указывает ли целевая позиция в сторону открытого состояния.
+     * @return True, если крышка нацелена в сторону открытого состояния, в противном случае — false.
+     */
     inline bool isTargetToOpen() {
         if (getOpenedPosition() > getClosedPosition()) {
             return getTargetPosition() > getCurrentPosition();
@@ -50,7 +106,10 @@ public:
         }
     }
 
-
+    /**
+     * @brief Проверяет, указывает ли целевая позиция в сторону закрытого состояния.
+     * @return True, если обложка нацелена в сторону закрытого состояния, в противном случае — false.
+     */
     inline bool isTargetToClose() {
         if (getOpenedPosition() > getClosedPosition()) {
             return getTargetPosition() < getCurrentPosition();
@@ -60,7 +119,9 @@ public:
     }
 };
 
-
+/**
+ * @brief Конкретная реализация интерфейса IPositionCover.
+ */
 class Cover : public IPositionCover {
 private:
     int currentPosition = UnknownPosition;
@@ -69,8 +130,12 @@ private:
     int openedPosition;
 
 public:
-    Cover(int closedPosition_, int openedPosition_)
-            : closedPosition(closedPosition_), openedPosition(openedPosition_) { }
+    /**
+     * @brief Конструктор класса Cover.
+     * @param closedPosition Положение, при котором штора полностью закрыта.
+     * @param openedPosition Положение, при котором штора полностью открыта.
+     */
+    Cover(int closedPosition, int openedPosition);
 
     inline void setTargetPosition(int value) override { targetPosition = value; }
     inline int getTargetPosition() override { return targetPosition; }

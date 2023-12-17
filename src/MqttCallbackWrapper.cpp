@@ -21,7 +21,7 @@ void MqttCallbackWrapper::onMessage(char *topic, byte *payload, unsigned int len
     };
     _payload.trim();
 
-    // Вывод поступившего сообщения в лог, больше никакого смысла этот блок кода не несет, можно исключить
+#ifdef DEBUG_SERIAL_OUT
     Serial.print("Message arrived [");
     Serial.print(topic);
     Serial.print("]: ");
@@ -30,6 +30,7 @@ void MqttCallbackWrapper::onMessage(char *topic, byte *payload, unsigned int len
 
     for (const auto& [key, _] : _topic_handlers)
         Serial.printf("key: %s\n", key);
+#endif
 
     // Сравниваем с топиками
     for (const auto& [_topic, func] : _topic_handlers)
@@ -37,7 +38,10 @@ void MqttCallbackWrapper::onMessage(char *topic, byte *payload, unsigned int len
             func(_cover_controller, _payload);
             return;
         }
-    Serial.println("Failed to recognize incoming with_prefix!");
+
+#ifdef DEBUG_SERIAL_OUT
+    //Serial.println("Failed to recognize incoming with_prefix!");
+#endif
 }
 
 void mqtt_topic_set_handler(const std::shared_ptr<ICoverController> & cover_controller, const String & payload) {
@@ -48,7 +52,9 @@ void mqtt_topic_set_handler(const std::shared_ptr<ICoverController> & cover_cont
     } else if (payload.equals(mqtt_topic_set_payload_stop)) {
         cover_controller->onSet(ICoverController::STOP);
     } else {
+#ifdef DEBUG_SERIAL_OUT
         Serial.println("Unknown payload: " + payload);
+#endif
     }
 }
 
