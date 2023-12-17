@@ -10,4 +10,6 @@ const auto motor_controller_pwm_speed_pin = D8;
 const auto sensor_opened_pin = D0;
 const auto sensor_closed_pin = D5;
 
+const auto settings_reset_pin = D4;
+
 #endif

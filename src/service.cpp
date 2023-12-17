@@ -1,17 +1,13 @@
 #include <ESP8266WiFi.h>
 
-#include "config/wifi.h"
 #include "service.h"
 
-bool wifiConnectionProcess() {
+bool wifiConnectionProcess(const Settings::WiFi & wifi) {
     static enum State {
         Start, Connecting, Connected, LostConnection
     } state = Start;
     static bool isWaiting = false;
     static unsigned long nextTime;
-
-    // Если подключение активно, то просто выходим и возвращаем true
-    if (WiFi.status() == WL_CONNECTED) return true;
 
     while (true) {
         if (isWaiting) {
@@ -30,11 +26,11 @@ bool wifiConnectionProcess() {
             case Start:
                 // ... иначе пробуем подключиться к сети
                 Serial.print("Connecting to WiFi AP ");
-                Serial.println(wifi_ssid);
+                Serial.println(wifi.ssid);
 
                 // Настраиваем WiFi
                 WiFi.mode(WIFI_STA);
-                WiFi.begin(wifi_ssid, wifi_pass);
+                WiFi.begin(wifi.ssid, wifi.pass);
 
                 state = Connecting;
 
@@ -49,7 +45,7 @@ bool wifiConnectionProcess() {
                 }
 
                 // Подключение успешно установлено
-                Serial.println(" ок");
+                Serial.println(" ok");
                 Serial.print("WiFi connected, obtained IP address: ");
                 Serial.println(WiFi.localIP());
 
@@ -66,4 +62,20 @@ bool wifiConnectionProcess() {
                 break;
         }
     }
+}
+
+Settings loadSettings() {
+    static bool read = false;
+    static Settings settings;
+
+    if (not read) {
+        EEPROM.begin(EEPROM_SIZE);
+
+        EEPROM.get(Offsets::Settings, settings);
+
+        EEPROM.end();
+        read = true;
+    }
+
+    return settings;
 }

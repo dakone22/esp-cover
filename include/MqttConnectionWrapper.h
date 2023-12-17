@@ -15,7 +15,8 @@ struct TopicDefinition {
 
 
 struct LastWill {
-    TopicDefinition topicDefinition;
+    const char *topic;
+    MQTT::QoS qos;
     MQTT::RetainMessage retainMessage;
     const char *payload;
 };

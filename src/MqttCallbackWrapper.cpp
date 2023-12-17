@@ -37,7 +37,7 @@ void MqttCallbackWrapper::onMessage(char *topic, byte *payload, unsigned int len
             func(_cover_controller, _payload);
             return;
         }
-    Serial.println("Failed to recognize incoming topic!");
+    Serial.println("Failed to recognize incoming with_prefix!");
 }
 
 void mqtt_topic_set_handler(const std::shared_ptr<ICoverController> & cover_controller, const String & payload) {

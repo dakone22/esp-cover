@@ -4,9 +4,7 @@
 
 #include "mqtt.h"
 
-#define topic_root        "home-assistant"
-#define topic_device_name "balcony-cover-1"
-#define TOPIC(topic)      topic_root "/" topic_device_name "/" topic
+#define TOPIC(topic)     topic
 
 // MQTT топики
 /// from broker

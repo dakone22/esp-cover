@@ -5,7 +5,7 @@ CoverPreparer::CoverPreparer(const std::shared_ptr<ICoverSensors> & coverSensors
                              unsigned long timeToClose)
         : _coverSensors(coverSensors), _motorController(motorController), msToOpen(timeToOpen), msToClose(timeToClose) { }
 
-CoverPrepareResult CoverPreparer::getResult() const { return { msToClose, msToClose, lastCoverState }; }
+CoverPrepareResult CoverPreparer::getResult() const { return { msToOpen, msToClose, lastCoverState }; }
 
 void CoverPreparer::prepare() {
     while (true) {

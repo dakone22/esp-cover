@@ -11,13 +11,15 @@ bool MqttConnectionWrapper::tryConnect() {
 }
 
 bool MqttConnectionWrapper::tryConnect(LastWill lastWill) {
+    Serial.printf("willtopic: \"%s\"\n", lastWill.topic);
+
     _mqtt_client.connect(
             _mqtt_server_auth.client_id,
             _mqtt_server_auth.login,
             _mqtt_server_auth.password,
             // last will: send `not available` when disconnected
-            lastWill.topicDefinition.topic,
-            lastWill.topicDefinition.qos,
+            lastWill.topic,
+            lastWill.qos,
             lastWill.retainMessage,
             lastWill.payload);
     return _mqtt_client.connected();

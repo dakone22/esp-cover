@@ -54,7 +54,7 @@ public:
                   const std::shared_ptr<IMotorController> & motorController,
                   unsigned long timeToOpen = -1, unsigned long timeToClose = -1);
 
-    CoverPrepareResult getResult() const override;;
+    CoverPrepareResult getResult() const override;
 
     inline bool isPrepared() override { return state == Ready; }
 

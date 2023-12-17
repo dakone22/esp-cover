@@ -13,6 +13,4 @@ public:
     void setCurrentPosition(int value) override;
 };
 
-std::function<void(CoverState, int)> get_publish_state_and_position_func(PubSubClient& mqtt_client);
-
 #endif //MQTTCOVER_H

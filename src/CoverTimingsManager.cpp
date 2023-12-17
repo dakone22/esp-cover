@@ -1,4 +1,5 @@
 #include <EEPROM.h>
+#include <HardwareSerial.h>
 
 #include "CoverTimingsManager.h"
 #include "config/memory.h"
@@ -9,7 +10,7 @@ bool isValid(CoverTimingsEntry entry) {
 }
 
 CoverTimingsManager::CoverTimingsManager() {
-    EEPROM.begin(sizeof(CoverTimingsEntry) * 2);
+    EEPROM.begin(EEPROM_SIZE);
 
     EEPROM.get(Offsets::CoverTimingsOpen, toOpen);
     EEPROM.get(Offsets::CoverTimingsClose, toClose);
@@ -17,6 +18,7 @@ CoverTimingsManager::CoverTimingsManager() {
     EEPROM.end();
 
     valid = isValid(toOpen) and isValid(toClose);
+    Serial.printf("Read from memory: open=%lu (%i), close=%lu (%i)\n", toOpen.timeToMove, toOpen.speed, toClose.timeToMove, toClose.speed);
 }
 
 inline bool isEqual(CoverTimingsEntry e1, CoverTimingsEntry e2) {
@@ -24,7 +26,7 @@ inline bool isEqual(CoverTimingsEntry e1, CoverTimingsEntry e2) {
 }
 
 inline void save(int address, CoverTimingsEntry entry) {
-    EEPROM.begin(sizeof(CoverTimingsEntry) * 2);
+    EEPROM.begin(EEPROM_SIZE);
     EEPROM.put(address, entry);
     EEPROM.end();
 }
