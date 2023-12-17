@@ -24,15 +24,20 @@ const unsigned long BAUDRATE = 921600;
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
-std::shared_ptr<ICoverSensors> sensors = nullptr;
-std::shared_ptr<ISpeedableMotorController> motor = nullptr;
-std::shared_ptr<IPositionCover> cover = nullptr;
+uint8_t sensor_buffer[8];
+uint8_t motor_buffer[8];
+int window_indexes[] = { 0, 1, 2, 3 };
+
+std::shared_ptr<ICoverSensors> sensors[4];
+std::shared_ptr<ISpeedableMotorController> motor[4];
+std::shared_ptr<IPositionCover> covers[4];
+std::shared_ptr<ICoverPreparer> coverPreparer[4];
+std::shared_ptr<ICoverTimingsManager> coverTimingsManager[4];
+std::shared_ptr<IReadyObserver> readyObserver[4];
+std::shared_ptr<ICoverMovementProcessor> coverMovementProcessor[4];
+
 std::shared_ptr<IMqttConnectionWrapper> mqttConnectionWrapper = nullptr;
 std::shared_ptr<IMqttCallbackWrapper> mqttCallbackWrapper = nullptr;
-std::shared_ptr<IReadyObserver> readyObserver = nullptr;
-std::shared_ptr<ICoverTimingsManager> coverTimingsManager = nullptr;
-std::shared_ptr<ICoverPreparer> coverPreparer = nullptr;
-std::shared_ptr<ICoverMovementProcessor> coverMovementProcessor = nullptr;
 
 Settings settings;
 
@@ -122,7 +127,7 @@ private:
 
 public:
     Topics(const char * prefix) : _prefix(prefix) {
-        for (int i : { 0, 1, 2, 3 }) {
+        for (int i : window_indexes) {
             _topic_position[i] = with_prefix(i, mqtt_topic_position);
             _topic_state[i] = with_prefix(i, mqtt_topic_state);
             _topic_availability[i] = with_prefix(i, mqtt_topic_availability);
@@ -155,65 +160,62 @@ public:
 
 std::shared_ptr<Topics> _topics;
 
-void publish_state_and_position_func(CoverState state, int position) {
-    if (not mqttClient.connected()) return;
-
-    static int lastPosition;
-    if (position != lastPosition) {
-        mqttClient.publish(_topics->getTopicPosition(1), String(position).c_str());
-        lastPosition = position;
-    }
-
-    static CoverState lastState;
-    if (state != lastState) {
-        lastState = state;
-        switch (state) {
-            case CoverState::Unknown:
-            case CoverState::Opened:
-                mqttClient.publish(_topics->getTopicState(1), mqtt_topic_state_payload_opened);
-                break;
-            case CoverState::Closed:
-                mqttClient.publish(_topics->getTopicState(1), mqtt_topic_state_payload_closed);
-                break;
-            case CoverState::Opening:
-                mqttClient.publish(_topics->getTopicState(1), mqtt_topic_state_payload_opening);
-                break;
-            case CoverState::Closing:
-                mqttClient.publish(_topics->getTopicState(1), mqtt_topic_state_payload_closing);
-                break;
-
-            default:
-                break;
-        }
-    }
-}
-
-
 #define SPEED 255
 
 void setup_cover() {
-    sensors = std::make_shared<CoverSensors>(sensor_closed_pin,
-                                             sensor_opened_pin,
-                                             LOW);
-    Serial.printf("CLOSED: %d; OPENED: %d\n", sensors->isClosed(), sensors->isOpened());
+    for (auto i : window_indexes) {
+        sensors[i] = std::make_shared<BufferedCoverSensors>(sensor_buffer, (2 * i), (2 * i) + 1, LOW);
+        Serial.printf("%i: CLOSED: %d; OPENED: %d\n", i, sensors[i]->isClosed(), sensors[i]->isOpened());
 
-    motor = std::make_shared<MotorDriverController>(motor_controller_in_1_pin,
-                                                    motor_controller_in_2_pin,
-                                                    motor_controller_pwm_speed_pin, 0, 255);
-    motor->setSpeed(SPEED);
+        motor[i] = std::make_shared<BufferedMotorDriverController>(motor_buffer, (2 * i), (2 * i) + 1,
+                                                                   motor_controller_pwm_speed_pin[i], 0, 255);
+        motor[i]->setSpeed(SPEED);
 
-    cover = std::make_shared<MqttCover>(position_closed, position_open, publish_state_and_position_func);
+        covers[i] = std::make_shared<MqttCover>(position_closed, position_open, [i](CoverState state, int position) {
+            if (not mqttClient.connected()) return;
 
-    readyObserver = std::make_shared<ReadyObserver>([]() {
-        Serial.printf("Sending available at \"%s\"! pos:%i; connected:%i\n", _topics->getTopicAvailability(1), cover->getCurrentPosition(), mqttClient.connected());
-        mqttClient.publish(_topics->getTopicAvailability(1), mqtt_topic_availability_payload_available);
-        cover->setCurrentPosition(cover->getCurrentPosition());
-    });
+            static int lastPosition;
+            if (position != lastPosition) {
+                mqttClient.publish(_topics->getTopicPosition(i), String(position).c_str());
+                lastPosition = position;
+            }
 
-    coverTimingsManager = std::make_shared<CoverTimingsManager>();
+            static CoverState lastState;
+            if (state != lastState) {
+                lastState = state;
+                switch (state) {
+                    case CoverState::Unknown:
+                    case CoverState::Opened:
+                        mqttClient.publish(_topics->getTopicState(i), mqtt_topic_state_payload_opened);
+                        break;
+                    case CoverState::Closed:
+                        mqttClient.publish(_topics->getTopicState(i), mqtt_topic_state_payload_closed);
+                        break;
+                    case CoverState::Opening:
+                        mqttClient.publish(_topics->getTopicState(i), mqtt_topic_state_payload_opening);
+                        break;
+                    case CoverState::Closing:
+                        mqttClient.publish(_topics->getTopicState(i), mqtt_topic_state_payload_closing);
+                        break;
 
-    coverPreparer = std::make_shared<CoverPreparer>(sensors, motor, coverTimingsManager->loadTimeToOpen().value_or(-1),
-                                                    coverTimingsManager->loadTimeToClose().value_or(-1));
+                    default:
+                        break;
+                }
+            }
+        });
+
+        readyObserver[i] = std::make_shared<ReadyObserver>([i]() {
+            Serial.printf("%i: Sending available at \"%s\"! pos:%i; connected:%i\n", i, _topics->getTopicAvailability(i), covers[i]->getCurrentPosition(), mqttClient.connected());
+            mqttClient.publish(_topics->getTopicAvailability(i), mqtt_topic_availability_payload_available);
+            covers[i]->setCurrentPosition(covers[i]->getCurrentPosition());
+        });
+
+        coverTimingsManager[i] = std::make_shared<CoverTimingsManager>();
+
+        coverPreparer[i] = std::make_shared<CoverPreparer>(sensors[i], motor[i],
+                                                        coverTimingsManager[i]->loadTimeToOpen().value_or(-1),
+                                                        coverTimingsManager[i]->loadTimeToClose().value_or(-1));
+    }
 }
 
 void setup_mqtt() {
@@ -230,7 +232,7 @@ void setup_mqtt() {
     mqttConnectionWrapper->setOnConnectionFunc([](bool success) {
         if (success) {
             Serial.printf("mqtt connected!%i\n", mqttClient.connected());
-            readyObserver->setMqttConnected(true);
+            for (auto i : window_indexes) readyObserver[i]->setMqttConnected(true);
         } else {
             Serial.print("failed, error code: ");
             Serial.print(mqttClient.state());
@@ -239,17 +241,19 @@ void setup_mqtt() {
     });
     mqttConnectionWrapper->setOnDisconnectionFunc([]() {
         Serial.print("Mqtt Disconnected!");
-        readyObserver->setMqttConnected(false);
+        for (auto i : window_indexes) readyObserver[i]->setMqttConnected(false);
     });
 
-    TopicHandlers topic_handlers = {
-            { _topics->getTopicSetPosition(1), mqtt_topic_set_position_handler },
-            { _topics->getTopicSet(1),         mqtt_topic_set_handler },
-    };
-    mqttCallbackWrapper = std::make_shared<MqttCallbackWrapper>(
-            mqttClient,
-            std::make_shared<CoverController>(cover),
-            topic_handlers);
+    for (auto i : window_indexes) {
+        TopicHandlers topic_handlers = {
+                { _topics->getTopicSetPosition(i), mqtt_topic_set_position_handler },
+                { _topics->getTopicSet(i),         mqtt_topic_set_handler },
+        };
+        mqttCallbackWrapper = std::make_shared<MqttCallbackWrapper>(
+                mqttClient,
+                std::make_shared<CoverController>(covers[i]),
+                topic_handlers);
+    }
 }
 
 void setup() {
@@ -286,6 +290,52 @@ void setup() {
     }
 }
 
+void write_motor_control(const uint8_t * buffer) {
+    static bool is_pin_inited = false;
+
+    if (not is_pin_inited) {
+        pinMode(motor_reg_data_pin, OUTPUT);
+        pinMode(motor_reg_shift_pin, OUTPUT);
+        pinMode(motor_reg_latch_pin, OUTPUT);
+        digitalWrite(motor_reg_latch_pin, LOW);
+    }
+
+    digitalWrite(motor_reg_latch_pin, LOW);
+
+    for (auto i = 0; i < 8; ++i) {
+        digitalWrite(motor_reg_data_pin, buffer[i]);
+
+        digitalWrite(motor_reg_shift_pin, HIGH);
+        digitalWrite(motor_reg_shift_pin, LOW);
+    }
+
+    digitalWrite(motor_reg_latch_pin, HIGH);
+
+}
+
+void read_sensors(uint8_t * buffer) {
+    static bool is_pin_inited = false;
+
+    if (not is_pin_inited) {
+        pinMode(motor_reg_data_pin, INPUT);
+        pinMode(motor_reg_shift_pin, OUTPUT);
+        pinMode(motor_reg_latch_pin, OUTPUT);
+        digitalWrite(motor_reg_latch_pin, LOW);
+    }
+
+    digitalWrite(motor_reg_latch_pin, LOW);
+
+    for (auto i = 0; i < 8; ++i) {
+        buffer[i] = digitalRead(motor_reg_data_pin);
+
+        digitalWrite(motor_reg_shift_pin, HIGH);
+        digitalWrite(motor_reg_shift_pin, LOW);
+    }
+
+    digitalWrite(motor_reg_latch_pin, HIGH);
+
+}
+
 inline bool isSettingsResetPressed() { return digitalRead(settings_reset_pin) == LOW; }
 #define TIME_TO_COVER_TIMINGS_RESET 5000  // ms
 #define TIME_TO_SETTINGS_RESET 15000      // ms
@@ -303,36 +353,42 @@ void loop() {
             }
         }
 
-        static bool isCoverReady = false;
-        if (not isCoverReady) {
-            coverPreparer->prepare();
-            if (coverPreparer->isPrepared()) {
-                Serial.println("Cover is ready!");
-                isCoverReady = true;
+        read_sensors(sensor_buffer);
 
-                auto result = coverPreparer->getResult();
-                coverTimingsManager->saveTimeToOpen({ SPEED, result.timeToOpen });
-                coverTimingsManager->saveTimeToClose({ SPEED, result.timeToClose });
+        static bool isCoverReady[4] = { false, false, false, false };
+        for (auto i : window_indexes) {
+            if (not isCoverReady[i]) {
+                coverPreparer[i]->prepare();
+                if (coverPreparer[i]->isPrepared()) {
+                    Serial.printf("Cover %i is ready!\n", i);
+                    isCoverReady[i] = true;
 
-                if (result.lastState == CoverState::Closed)
-                    cover->setCurrentPosition(cover->getClosedPosition());
-                else if (result.lastState == CoverState::Opened)
-                    cover->setCurrentPosition(cover->getOpenedPosition());
-                else {
-                    Serial.println("Unknown start state after prepare!");
+                    auto result = coverPreparer[i]->getResult();
+                    coverTimingsManager[i]->saveTimeToOpen({ SPEED, result.timeToOpen });
+                    coverTimingsManager[i]->saveTimeToClose({ SPEED, result.timeToClose });
+
+                    if (result.lastState == CoverState::Closed)
+                        covers[i]->setCurrentPosition(covers[i]->getClosedPosition());
+                    else if (result.lastState == CoverState::Opened)
+                        covers[i]->setCurrentPosition(covers[i]->getOpenedPosition());
+                    else {
+                        Serial.println("Unknown start state after prepare!");
+                    }
+
+                    if (covers[i]->getTargetPosition() == -1) covers[i]->setTargetPosition(covers[i]->getCurrentPosition());
+
+                    coverMovementProcessor[i] = std::make_shared<PositionCoverMovementProcessor>(
+                            covers[i], motor[i], sensors[i],
+                            result.timeToOpen, result.timeToClose);
+
+                    readyObserver[i]->setCoverReady();
                 }
-
-                if (cover->getTargetPosition() == -1) cover->setTargetPosition(cover->getCurrentPosition());
-
-                coverMovementProcessor = std::make_shared<PositionCoverMovementProcessor>(
-                        cover, motor, sensors,
-                        result.timeToOpen, result.timeToClose);
-
-                readyObserver->setCoverReady();
+            } else {
+                coverMovementProcessor[i]->process();
             }
-        } else {
-            coverMovementProcessor->process();
         }
+
+        write_motor_control(motor_buffer);
 
         static bool wasSettingsResetPressed = false;
         static unsigned long resetTimePressed;
@@ -356,8 +412,10 @@ void loop() {
             Serial.printf("Released reset settings button after %lu...\n", time_passed);
             if (time_passed > TIME_TO_COVER_TIMINGS_RESET) {
                 Serial.println("TIME_TO_COVER_TIMINGS_RESET...");
-                coverTimingsManager->saveTimeToOpen({ 0, 0 });
-                coverTimingsManager->saveTimeToClose({ 0, 0 });
+                for (auto i : window_indexes) {
+                    coverTimingsManager[i]->saveTimeToOpen({ 0, 0 });
+                    coverTimingsManager[i]->saveTimeToClose({ 0, 0 });
+                }
                 if (WiFi.status() == WL_CONNECTED) WiFi.disconnect(true);
                 ESP.reset();
             }

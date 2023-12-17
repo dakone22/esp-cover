@@ -23,11 +23,12 @@ struct Settings {
 };
 
 namespace Offsets {
-    constexpr auto CoverTimingsOpen = 0;
-    constexpr auto CoverTimingsClose = sizeof(CoverTimingsEntry) * 1;
-    constexpr auto Settings = sizeof(CoverTimingsEntry) * 2;
+    constexpr auto Settings = 0;
+    constexpr auto CoverTimingsOpen = sizeof(Settings);
+    constexpr auto CoverTimingsClose = sizeof(Settings) + sizeof(CoverTimingsEntry) * 1;
 }
 
-constexpr auto EEPROM_SIZE = Offsets::Settings + sizeof(Settings);
+constexpr auto EEPROM_SIZE = sizeof(Settings) + sizeof(CoverTimingsEntry) * 8;
+static_assert(EEPROM_SIZE <= 512);
 
 #endif //CONFIG_MEMORY_H

@@ -24,6 +24,10 @@ class CoverTimingsManager : public ICoverTimingsManager {
 private:
     CoverTimingsEntry toOpen{}, toClose{};
     bool valid = false;
+    unsigned int index;
+
+    int getOpenEntryAddress() const;
+    int getCloseEntryAddress() const;
 
 public:
     CoverTimingsManager();
@@ -31,6 +35,10 @@ public:
     void saveTimeToClose(CoverTimingsEntry) override;
     std::optional<unsigned long> loadTimeToOpen() override;
     std::optional<unsigned long> loadTimeToClose() override;
+
+    static unsigned int GLOBAL_INDEX;
 };
+
+unsigned int CoverTimingsManager::GLOBAL_INDEX = 0;
 
 #endif //COVERTIMINGSMANAGER_H

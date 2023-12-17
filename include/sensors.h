@@ -21,4 +21,18 @@ public:
     inline bool isOpened() override { return digitalRead(_opened_sensor_pin) == _active_value; }
 };
 
+class BufferedCoverSensors : public ICoverSensors {
+private:
+    const uint8_t * _buffer;
+    size_t _closed_sensor_index;
+    size_t _opened_sensor_index;
+    int _active_value;
+
+public:
+    BufferedCoverSensors(const uint8_t * buffer, uint8_t closed_sensor_index, uint8_t opened_sensor_index, int active_value);
+
+    inline bool isClosed() override { return _buffer[_closed_sensor_index] == _active_value; }
+    inline bool isOpened() override { return _buffer[_opened_sensor_index] == _active_value; }
+};
+
 #endif // SENSORS_H

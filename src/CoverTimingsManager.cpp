@@ -9,11 +9,11 @@ bool isValid(CoverTimingsEntry entry) {
             (0 < entry.timeToMove and entry.timeToMove < 10000);
 }
 
-CoverTimingsManager::CoverTimingsManager() {
+CoverTimingsManager::CoverTimingsManager() : index(GLOBAL_INDEX++) {
     EEPROM.begin(EEPROM_SIZE);
 
-    EEPROM.get(Offsets::CoverTimingsOpen, toOpen);
-    EEPROM.get(Offsets::CoverTimingsClose, toClose);
+    EEPROM.get(getOpenEntryAddress(), toOpen);
+    EEPROM.get(getCloseEntryAddress(), toClose);
 
     EEPROM.end();
 
@@ -34,13 +34,13 @@ inline void save(int address, CoverTimingsEntry entry) {
 void CoverTimingsManager::saveTimeToOpen(CoverTimingsEntry entry) {
     if (isEqual(entry, toOpen)) return;
 
-    save(Offsets::CoverTimingsOpen, entry);
+    save(getOpenEntryAddress(), entry);
 }
 
 void CoverTimingsManager::saveTimeToClose(CoverTimingsEntry entry) {
     if (isEqual(entry, toClose)) return;
 
-    save(Offsets::CoverTimingsClose, entry);
+    save(getCloseEntryAddress(), entry);
 }
 
 std::optional<unsigned long> CoverTimingsManager::loadTimeToOpen() {
@@ -58,3 +58,7 @@ std::optional<unsigned long> CoverTimingsManager::loadTimeToClose() {
         return { };
     }
 }
+
+int CoverTimingsManager::getOpenEntryAddress() const { return Offsets::CoverTimingsOpen + sizeof(CoverTimingsEntry) * 2 * index; }
+
+int CoverTimingsManager::getCloseEntryAddress() const { return Offsets::CoverTimingsClose + sizeof(CoverTimingsEntry) * 2 * index; }
